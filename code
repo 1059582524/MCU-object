@@ -1,0 +1,342 @@
+#include<reg52.h>
+#include<intrins.h>
+
+#define uchar unsigned char 
+#define uint unsigned int 
+
+sbit lcden=P2^2;	   //lcd始能
+sbit lcdrw=P2^1;	   //读数据标志位
+sbit lcdrs=P2^0;	   //写数据标志位
+sbit BF=P0^7;		   //忙标志位
+
+uchar code table[]={'1','2','3','4','5','6','7','8','9'};		//按键数组
+uchar code table1[]="  Memory Game";		//游戏初始界面显示内容
+uchar code table2[]=" Press Key to Go";		//游戏初始界面显示内容
+uchar code table3[]="level:01    T:00";     //游戏准备阶段显示内容
+uchar code table3_1[]="num:";
+uchar code table_temp[]={0x38,0x37,0x32,0x34,0x36,0x39,0x31,0x38,0x37,0x33}; //随机数8724691873
+uchar  table4[10];					        //储存生成的数字
+uchar  table5[10];					     	//储存按下的数字
+uchar code table6[]={"SuccessFailure"};        //游戏结束画面
+uchar code table7[]={"Make by WangKai"};
+uchar code table8[]={0x5e,0x5f,0x7e,0x7f};                     //结束画面的表情
+
+uchar T0_num=0,T0_num1=0,flag=0;
+static cishu=0; 			   //用于记录按下按键的次数
+
+void delay(uint xms)		   //delay xms ms
+{
+	uint x,y;
+	for(x=xms;x>0;x--)
+		for(y=110;y>0;y--);
+}
+
+uchar Busy()
+{								 //忙碌标志检测
+	bit result;
+	lcdrs=0;
+	lcdrw=1;
+	lcden=1;
+	_nop_();
+	_nop_();
+	_nop_();
+	result=BF;
+	lcden=0;
+	return result;
+} 
+
+void write_cmd(uchar cmd)		//写lcd命令
+{
+	while(Busy()==1);
+	lcdrs=0;
+	lcdrw=0;
+	P0=cmd;
+	lcden=1;
+	_nop_();
+	_nop_();
+	_nop_();
+	lcden=0;
+    _nop_();
+	_nop_();
+	_nop_();
+}
+
+void write_data(uchar date)	    //写入数据
+{
+	while(Busy()==1);
+	lcdrs=1;
+	lcdrw=0;
+	P0=date;
+	lcden=1;
+	_nop_();
+	_nop_();
+	_nop_();
+	lcden=0;
+	_nop_();
+	_nop_();
+	_nop_();
+}
+
+uchar scankey()	              //按键检测。用于玩家在游戏的第三阶段输入数字
+{
+	uchar temp,flag,key=0;		 //temp用于辅助按键检测，flag本函数的标志位有按键返回1，
+								 //无按键返回0，key按键标志位用于记录按下按键的次数。	
+	
+	P1=0xfe;					 //检测第一行按键
+	temp=P1;							  
+	temp=temp&0xf8;
+	if(temp!=0xf8)
+	{
+		delay(10);
+		temp=P1;
+		temp=temp&0xf8;
+		if(temp!=0xf8)			 
+		{
+			temp=P1;
+			switch(temp)
+			{
+				case 0xf6:
+					key=1;
+					break;
+				case 0xee:
+					key=2;
+					break;
+				case 0xde:
+					key=3;
+					break;
+			}
+		}
+		while(temp!=0xf8)
+		{	
+			temp=P1;
+			temp=temp&0xf8;
+		}
+	}						         
+	P1=0xfd;				    //检测第二行按键
+	temp=P1;
+	temp=temp&0xf8;
+	if(temp!=0xf8)
+	{
+		delay(10);
+		temp=P1;
+		temp=temp&0xf8;
+		if(temp!=0xf8)
+		{
+			temp=P1;
+			switch(temp)
+			{
+				case 0xf5:
+					key=4;
+					break;
+				case 0xed:
+					key=5;
+					break;
+				case 0xdd:
+					key=6;
+					break;
+			}
+		}
+		while(temp!=0xf8)
+		{	
+			temp=P1;
+			temp=temp&0xf8;
+		}
+	}
+	P1=0xfb;				   //检测第三行按键
+	temp=P1;
+	temp=temp&0xf8;
+	if(temp!=0xf8)
+	{
+		delay(10);
+		temp=P1;
+		temp=temp&0xf8;
+		if(temp!=0xf8)
+		{
+			temp=P1;
+			switch(temp)
+			{
+				case 0xf3:
+					key=7;
+					break;
+				case 0xeb:
+					key=8;
+					break;
+				case 0xdb:
+					key=9;
+					break;
+			}
+		}
+		while(temp!=0xf8)
+		{	
+			temp=P1;
+			temp=temp&0xf8;
+		}
+	}
+	if((key!=0)&&(cishu==0))					  //第一次按下进入游戏；
+	{
+		cishu++;
+		flag=1;
+	}								  
+	else if(key!=0&&cishu!=0)					  //第二次按下显示数字，并记录按下的数字；
+	{
+		write_data(table[key-1]);
+		table5[cishu-1]=key;	
+		cishu++;
+		key=0;
+		flag=1;
+	}	
+	return flag;
+}
+
+
+uchar judgement()
+{
+	uchar x,judge;
+	for(x=0;x<10;x++)
+	{
+		if(table4[0]==table5[0])
+			judge=1;
+		else
+		{
+			judge=0;
+			break;
+		}
+	}
+	return judge;
+}
+void disp_1()			//显示游戏初始化界面
+{	
+	uchar x;
+	write_cmd(0x80);
+	for(x=0;x<13;x++)			   //显示第一行字符
+		write_data(table1[x]);
+	write_cmd(0x80+0x40);		   //显示第二行字符
+	for(x=0;x<16;x++)
+		write_data(table2[x]);
+}
+
+void disp_2()           //游戏准备界面
+{
+	uchar x,num=0;
+	 
+	write_cmd(0x80);
+	for(x=0;x<16;x++)			  //显示第一行字符
+		write_data(table3[x]);
+	write_cmd(0x80+0x40);
+	for(x=0;x<4;x++)
+		write_data(table3_1[x]);
+	for(x=0;x<10;x++)			  //第二行随机的10个数字
+	{							  
+		num=table_temp[x];
+		num=num-48;
+		table4[x]=num;
+		write_data(table[num-1]);
+	}
+}
+
+void disp_3()					  //游戏进行中画面
+{
+	uchar code disp[]="Press your num:";
+	uchar x;
+	write_cmd(0x80);
+	for(x=0;x<18;x++)
+		write_data(disp[x]);
+}
+void disp_4(uchar judge)		 //游戏结束画面
+{
+	uchar x;
+	if(judge==1)
+	{
+		write_cmd(0x80);
+		for(x=0;x<7;x++)
+			write_data(table6[x]);
+		write_cmd(0x14);		 //光标右移
+		write_data(table8[0]);
+		write_data(table8[1]);
+		write_data(table8[0]);	
+		write_cmd(0x80+0x40);
+		for(x=0;x<15;x++)
+			write_data(table7[x]);			
+	}
+	if(judge==0)
+	{
+		write_cmd(0x80);
+		for(x=7;x<14;x++)
+			write_data(table6[x]);
+		write_cmd(0x14);
+		write_data(table8[2]);
+		write_data(table8[1]);
+		write_data(table8[3]);	
+		write_cmd(0x80+0x40);
+		for(x=0;x<15;x++)
+			write_data(table7[x]);			
+	}
+}
+
+void lcd_init()			 //lcd初始化
+{
+	delay(15);
+	write_cmd(0x38);	 //设置显示方式
+	write_cmd(0x0c);	 //开启显示命令，不显示光标
+	write_cmd(0x06);	 //设置写入数据之后指针自动加1
+	write_cmd(0x01);	 //清楚显示命令
+}
+
+void T0_init()			 //定时器初始化
+{
+	TMOD=0x01;
+	TH0=(65563-45872)/256;
+	TL0=(65563-45872)%256;
+	EA=1;
+	ET0=1;
+}
+
+
+void main()
+{
+	T0_init();
+	lcd_init();
+	disp_1();				  //显示准备界面
+	while(scankey()!=1);	  //等待有按键按下就开始游戏
+	write_cmd(0x01);		  //清屏
+
+	disp_2();				  //游戏开始界面
+	TR0=1;
+	while(flag!=1);			  //计时时间到则关闭定时器0
+	TR0=0;					  
+	write_cmd(0x01);
+
+	disp_3();				  //游戏进行中界面
+	write_cmd(0x80+0x40);
+	while(cishu!=11)
+		scankey();
+	write_cmd(0x01);
+
+	disp_4(judgement());	  //游戏结束界面
+	while(1);
+}
+
+void T0_interrupt() interrupt 1		  //产生游戏开始阶段时的时间
+{
+	TH0=(65563-45872)/256;
+	TL0=(65563-45872)%256;
+	T0_num++;
+	if(T0_num==20)
+	{
+		T0_num=0; 
+		T0_num1++;
+		if(T0_num1==10)
+		{	
+			write_cmd(0x80+0x0e);
+			write_data(table[0]);
+			write_cmd(0x80+0x0f);
+			write_data(table3[15]);
+			flag=1;		
+		}
+		else
+		{
+		write_cmd(0x80+0x0f);
+		write_data(table[T0_num1-1]);
+		}					
+	}		
+}
